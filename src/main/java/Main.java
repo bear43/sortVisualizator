@@ -24,7 +24,11 @@ public class Main {
 
     private static Thread thr = new Thread(new UpdateThread());
 
-    private static VBO vbo;
+    private static VBODynamic2D pointsVBO;
+
+    private static VBO additionalVBO;
+
+    private static VBO colorVBO;
 
     private static List<Point2D> buildCircle(int[] array) {
         List<Point2D> list = new ArrayList<>();
@@ -51,6 +55,8 @@ public class Main {
     private static boolean sorted;
 
     public static int[] array = new int[180];
+
+    public static int[] colorArray;
 
     private static double[] pointListToDoubleArray() {
         return pointList.stream().map(x -> new double[] {x.getX(), x.getY()}).reduce((a, b) -> {
@@ -176,7 +182,8 @@ public class Main {
 
         // Set the clear color
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        vbo = new VBODynamic2D();
+        pointsVBO = new VBODynamic2D();
+        colorVBO = new VBODynamic2D();
         // Run the rendering loop until the user has attempted to close
         // the window or has pressed the ESCAPE key.
         while ( !glfwWindowShouldClose(window) ) {
@@ -197,13 +204,10 @@ public class Main {
     }
 
     private static void render() throws Exception {
-        vbo.fillBuffer(pointListToDoubleArray());
-        glColor3ub((byte)255, (byte)255, (byte)255);
-        GL11.glEnableClientState(GL11.GL_VERTEX_ARRAY);
-        vbo.bindBuffer();
-        GL11.glVertexPointer(2, GL_DOUBLE, 0, 0);
-        GL30.glDrawArrays(GL_LINE_LOOP, 0, pointList.size());
-        vbo.unbindBuffer();
+        pointsVBO.fillBuffer(pointListToDoubleArray());
+        pointsVBO.draw(pointList.size());
+        additionalVBO.fillBuffer();
+
     }
 
     public static void main(String[] args) throws Exception {
