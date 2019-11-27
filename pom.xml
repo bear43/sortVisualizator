@@ -22,7 +22,7 @@
 
     <properties>
         <lwjgl.version>3.2.3</lwjgl.version>
-        <lwjgl.natives>natives-linux</lwjgl.natives>
+        <lwjgl.natives>natives-windows</lwjgl.natives>
     </properties>
 
     <dependencyManagement>

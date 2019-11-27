@@ -1,3 +1,5 @@
+import lombok.Data;
+import lombok.Getter;
 import org.lwjgl.Version;
 
 import java.awt.geom.Point2D;
@@ -6,6 +8,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import org.lwjgl.glfw.*;
@@ -13,6 +17,7 @@ import org.lwjgl.opengl.*;
 import org.lwjgl.system.*;
 import vbo.VBO;
 import vbo.dd.VBODynamic2D;
+import vbo.dd.VBOVertex2DColor3D;
 
 import static org.lwjgl.glfw.Callbacks.*;
 import static org.lwjgl.glfw.GLFW.*;
@@ -20,18 +25,18 @@ import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.system.MemoryStack.*;
 import static org.lwjgl.system.MemoryUtil.*;
 
+@Data
 public class Main {
 
     private static Thread thr = new Thread(new UpdateThread());
 
     private static VBODynamic2D pointsVBO;
 
-    private static VBO additionalVBO;
+    @Getter
+    private static VBODynamic2D additionalVBO;
 
-    private static VBO colorVBO;
-
-    private static List<Point2D> buildCircle(int[] array) {
-        List<Point2D> list = new ArrayList<>();
+    private static List<VBOVertex2DColor3D> buildCircle(int[] array) {
+        List<VBOVertex2DColor3D> list = new ArrayList<>();
         double currentX;
         double currentY;
         double currentAngle;
@@ -42,44 +47,38 @@ public class Main {
             currentAngle = Math.toRadians(index++ * angle);
             currentX = Math.cos(currentAngle);
             currentY = Math.sin(currentAngle);
-            multiplier = index > (double)i ? (double)i/index : index/(double)i;
+            multiplier = (double)i/(double)array.length;
             currentX *= multiplier;
             currentY *= multiplier;
-            list.add(new Point2D.Double(currentX, currentY));
+            list.add(new VBOVertex2DColor3D(currentX, currentY));
         }
         return list;
     }
 
-    public static List<Point2D> pointList = new CopyOnWriteArrayList<>();
+    public static List<VBOVertex2DColor3D> pointList = new CopyOnWriteArrayList<>();
+    public static List<VBOVertex2DColor3D> additionalList = new CopyOnWriteArrayList<>();
 
     private static boolean sorted;
 
-    public static int[] array = new int[180];
+    public static int[] array = new int[120];
 
     public static int[] colorArray;
 
-    private static double[] pointListToDoubleArray() {
-        return pointList.stream().map(x -> new double[] {x.getX(), x.getY()}).reduce((a, b) -> {
-            double[] sum = new double[a.length+b.length];
-            System.arraycopy(a, 0, sum, 0, a.length);
-            System.arraycopy(b, 0, sum, a.length, b.length);
-            return sum;
-        }).orElse(new double[0]);
-    }
-
-    public static void bubbleSort(int[] arr, Supplier<Void> onIterationCallback)
+    public static void bubbleSort(int[] arr, BiConsumer<Integer, Integer> onIterationCallback)
     {
         int n = arr.length;
-        for (int i = 0; i < n-1; i++)
-            for (int j = 0; j < n-i-1; j++)
-                if (arr[j] > arr[j+1])
-                {
+        for (int i = 0; i < n-1; i++) {
+            for (int j = 0; j < n - i - 1; j++) {
+                onIterationCallback.accept(j, j + 1);
+                if (arr[j] > arr[j + 1]) {
                     // swap arr[j+1] and arr[i]
                     int temp = arr[j];
-                    arr[j] = arr[j+1];
-                    arr[j+1] = temp;
-                    onIterationCallback.get();
+                    arr[j] = arr[j + 1];
+                    arr[j + 1] = temp;
+                    onIterationCallback.accept(j + 1, j);
                 }
+            }
+        }
     }
 
     private static void generateArray(int[] arr) {
@@ -131,7 +130,7 @@ public class Main {
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE); // the window will be resizable
 
         // Create the window
-        window = glfwCreateWindow(640, 480, "Hello World!", NULL, NULL);
+        window = glfwCreateWindow(1024, 768, "Hello World!", NULL, NULL);
         if ( window == NULL )
             throw new RuntimeException("Failed to create the GLFW window");
 
@@ -162,6 +161,7 @@ public class Main {
 
         // Make the OpenGL context current
         glfwMakeContextCurrent(window);
+
         // Enable v-sync
         glfwSwapInterval(1);
 
@@ -183,9 +183,12 @@ public class Main {
         // Set the clear color
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         pointsVBO = new VBODynamic2D();
-        colorVBO = new VBODynamic2D();
+        additionalVBO = new VBODynamic2D();
         // Run the rendering loop until the user has attempted to close
         // the window or has pressed the ESCAPE key.
+        glfwSetWindowSizeCallback(window, (win, width, height) -> {
+            glViewport(0, 0, width, height);
+        });
         while ( !glfwWindowShouldClose(window) ) {
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
             //glMatrixMode(GL_PROJECTION);
@@ -204,10 +207,10 @@ public class Main {
     }
 
     private static void render() throws Exception {
-        pointsVBO.fillBuffer(pointListToDoubleArray());
-        pointsVBO.draw(pointList.size());
-        additionalVBO.fillBuffer();
-
+        pointsVBO.fillBuffer(Util.pointListToDoubleArray(pointList));
+        pointsVBO.draw(GL_LINE_LOOP, pointList.size());
+        additionalVBO.fillBuffer(Util.pointListToDoubleArray(additionalList));
+        additionalVBO.draw(GL_LINES, additionalList.size());
     }
 
     public static void main(String[] args) throws Exception {
